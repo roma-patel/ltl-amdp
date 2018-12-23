@@ -36,7 +36,7 @@ class LTLGridWorldMDP(GridWorldMDP):
 
     def _transition_func(self, state, action):
         next_state_xy = super()._transition_func(state, action)
-        print('{}, {}'.format(next_state_xy.x, next_state_xy.y))
+        #print('{}, {}'.format(next_state_xy.x, next_state_xy.y))
         # evaluate APs
         evaluated_APs = self._evaluate_APs(next_state_xy, self.ap_map)
 #        if (next_state_xy.x == 6) & (next_state_xy.y == 3):

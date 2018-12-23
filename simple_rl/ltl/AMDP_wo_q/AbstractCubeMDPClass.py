@@ -50,16 +50,19 @@ class CubeL2GroundedAction(NonPrimitiveAbstractTask):
         return int(floor_numbers[0])
 
     def _terminal_function(self, state):
-
         return self.l1_domain.get_floor_numbers(state.agent_in_room_number)[0] == self.goal_floor
 
     def _reward_function(self, state):
-        if state.q == 1:
+        if self.l1_domain.get_floor_numbers(state.agent_in_room_number)[0] == self.goal_floor:
             return 100
-        elif state.q == 0:
-            return -1
         else:
-            return -100
+            return 0
+        #if state.q == 1:
+        #    return 100
+        #elif state.q == 0:
+        #    return -1
+        #else:
+        #    return -100
 
     def _floor_number(self, state):
         return self.l1_domain.get_floor_numbers(state.room_number)[0]
@@ -69,6 +72,7 @@ class CubeL1State(State):
         State.__init__(self, data=[room_number, q], is_terminal=is_terminal)
         self.agent_in_room_number = room_number
         self.q = q # logic state
+        # TODO: floor information
 
     def __hash__(self):
         return hash(tuple(self.data))
@@ -104,14 +108,18 @@ class CubeL1GroundedAction(NonPrimitiveAbstractTask):
     def _terminal_function(self, state):
         return self.l0_domain.get_room_numbers((state.x, state.y, state.z))[0] == self.goal_room
 
-
     def _reward_function(self, state):
-        if state.q == 1:
+        if self.l0_domain.get_room_numbers((state.x, state.y, state.z))[0] == self.goal_room:
             return 100
-        elif state.q == 0:
-            return -1
         else:
-            return -100
+            return 0
+
+#        if state.q == 1:
+#            return 100
+#        elif state.q == 0:
+#            return -1
+#        else:
+#            return -100
 
 
     def _room_number(self, state):
@@ -137,7 +145,8 @@ class CubeRootL1GroundedAction(RootTaskNode):
 class CubeL2MDP(MDP):
     ACTIONS = ["toFloor%d" %ii for ii in range(1,4)]
     def __init__(self, starting_floor=1, gamma=0.99, env_file=[], constraints={}, ap_maps={}):
-        self.terminal_func = lambda state: state.q != 0
+        initial_state = CubeL2State(starting_floor, 0)
+        self.terminal_func = lambda state: state._is_terminal #state.q == 1
         self.constraints = constraints
         self.ap_maps = ap_maps
 
@@ -147,25 +156,30 @@ class CubeL2MDP(MDP):
         else:
             print("Input: env_file")
 
-        initial_state = CubeL2State(starting_floor, self._transition_q(starting_floor, ""))
-        if initial_state.q != 0:
-            initial_state.set_terminal(True)
-
         MDP.__init__(self, CubeL2MDP.ACTIONS, self._transition_func, self._reward_func, init_state=initial_state,
                      gamma=gamma)
 
+    def terminal_func(self, state):
+        next_q = self._evaluate_qstate(state.agent_on_floor_number)
+        return next_q != 1
+
     def _reward_func(self, state, action):
-
-        next_state = self._transition_func(state, action)
-
-        if next_state.q == 0: # stay
-            reward = -1
-        elif next_state.q == 1:  # success
-            reward = 100
-        elif next_state.q == -1:  # fail
-            reward = -100
-
-        return reward
+        q = self._evaluate_qstate(state.agent_on_floor_number)
+        if q == 0:
+            return -1
+        elif q == 1:
+            return 100
+        elif q == -1:
+            return -100
+        #reward = -1 if q==0, 100
+        #if state.q == 0: # stay
+        #    reward = -1
+        #elif state.q == 1:  # success
+        #    reward = 100
+        #elif state.q == -1:  # fail
+        #    reward = -100
+        #print(state, action, reward)
+        #return reward
 
     def _transition_func(self, state, action):
         if state.is_terminal():
@@ -175,22 +189,13 @@ class CubeL2MDP(MDP):
         next_state = None
         action_floor_number = int(action.split('toFloor')[1])
 
-        if abs(current_floor - action_floor_number) == 1:  # transition function
+        if abs(current_floor - action_floor_number) == 1: # transition function
 
-            evaluated_APs = self._evaluate_APs(action_floor_number)
+            next_q = self._evaluate_qstate(action_floor_number)
 
-            for ap in evaluated_APs.keys():
-                exec('%s = symbols(\'%s\')' % (ap, ap))
+            next_state = CubeL2State(action_floor_number, 0)
 
-            if eval(self.constraints['goal']).subs(evaluated_APs):
-                next_q = 1
-            elif eval(self.constraints['stay']).subs(evaluated_APs):
-                next_q = 0
-            else:
-                next_q = -1
-
-            next_state = CubeL2State(action_floor_number, next_q)
-            if next_state.q != 0:
+            if next_q == 1:
                 next_state.set_terminal(True)
 
         if next_state is None:
@@ -199,26 +204,22 @@ class CubeL2MDP(MDP):
 
         return next_state
 
-    def _transition_q(self, floor_num, action):
-        # evaluate APs
-        evaluated_APs = self._evaluate_APs(floor_num)
+    def _evaluate_qstate(self, floor_number):
+        evaluated_APs = self._evaluated_APs(floor_number)
 
-        # q state transition
-        # define symbols
         for ap in evaluated_APs.keys():
             exec('%s = symbols(\'%s\')' % (ap, ap))
-        # evaluation
-        if eval(self.constraints['goal']).subs(evaluated_APs):  # goal
+
+        if eval(self.constraints['goal']).subs(evaluated_APs):
             next_q = 1
-        elif eval(self.constraints['stay']).subs(evaluated_APs):  # keep planning
+        elif eval(self.constraints['stay']).subs(evaluated_APs):
             next_q = 0
-        else:  # fail
+        else:
             next_q = -1
 
         return next_q
 
-
-    def _evaluate_APs(self, floor_num):
+    def _evaluated_APs(self, floor_num):
         evaluated_APs = {}
         for ap in self.ap_maps.keys():
             if (self.ap_maps[ap][0] == 2) and (self.ap_maps[ap][2] == floor_num):
@@ -241,7 +242,9 @@ class CubeL1MDP(MDP):
     ACTIONS = ["toRoom%d" %ii for ii in range(1, 11)]  # actions??
     def __init__(self, starting_room=1, gamma=0.99, slip_prob=0.0, env_file=[], constraints = {}, ap_maps = {}):
         # TODO: work
-        self.terminal_func = lambda state: state.q != 0
+        initial_state = CubeL1State(starting_room, 0)
+        #self.goal_state = CubeL1State(goal_room,0, is_terminal=True)
+        #self.terminal_func = lambda state: state._is_terminal# == 1
         self.constraints = constraints
         self.ap_maps = ap_maps
         self.slip_prob = slip_prob
@@ -252,25 +255,31 @@ class CubeL1MDP(MDP):
         else:
             print("Input: env_file")
 
-        initial_state = CubeL1State(starting_room, self._transition_q(starting_room, ""))
-        if initial_state.q != 0:
-            initial_state.set_terminal(True)
-
         MDP.__init__(self, CubeL1MDP.ACTIONS, self._transition_func, self._reward_func, init_state=initial_state,
                      gamma=gamma)
 
+    def terminal_func(self, state):
+        next_q = self._evaluate_qstate(state.agent_in_room_number)
+        return (next_q !=0)
+
     def _reward_func(self, state, action):
+        next_q = self._evaluate_qstate(state.agent_in_room_number)
 
-        next_state = self._transition_func(state, action)
+        if next_q == 0:  # stay
+            return -1
+        elif next_q == 1: # success
+            return 100
+        elif next_q == -1:  # fail
+            return -100
 
-        if next_state.q == 0: # stay
-            reward = -1
-        elif next_state.q == 1:  # success
-            reward = 100
-        elif next_state.q == -1:  # fail
-            reward = -100
+        #if state.q == 0: # stay
+        #    reward = -1
+        #elif state.q == 1:  # success
+        #    reward = 100
+        #elif state.q == -1:  # fail
+        #    reward = -100
         #print(state, action, reward)
-        return reward
+        #return reward
 
 
     def _transition_func(self, state, action):
@@ -282,46 +291,37 @@ class CubeL1MDP(MDP):
         action_room_number = int(action.split('toRoom')[1])
         if current_room in self.cube_env['transition_table'].keys():
             if action_room_number in self.cube_env['transition_table'][current_room]:
+                #r = random.random()
+                #if self.slip_prob>r:
+                #    next_room = random.choice(self.cube_env['transition_table'][current_room])
+                #else:
+                #    next_room = action_room_number
 
-                # evaluation
-                evaluated_APs = self._evaluate_APs(action_room_number)
+                next_q = self._evaluate_qstate(action_room_number)
 
-                for ap in evaluated_APs.keys():
-                    exec('%s = symbols(\'%s\')' % (ap, ap))
+                next_state = CubeL1State(action_room_number, 0)
 
-                if eval(self.constraints['goal']).subs(evaluated_APs):
-                    next_q = 1
-                elif eval(self.constraints['stay']).subs(evaluated_APs):
-                    next_q = 0
-                else:
-                    next_q = -1
-
-                next_state = CubeL1State(action_room_number, next_q)
-
-                if next_state.q != 0:
+                if next_q == 1:
                     next_state.set_terminal(True)
 
         if next_state is None:
             next_state = state
 
-            #next_state._is_terminal = (next_state.q == 1)
 
         return next_state
 
-    def _transition_q(self, room_num, action):
-        # evaluate APs
-        evaluated_APs = self._evaluate_APs(room_num)
+    def _evaluate_qstate(self, room_number):
+        # evaluation
+        evaluated_APs = self._evaluate_APs(room_number)
 
-        # q state transition
-        # define symbols
         for ap in evaluated_APs.keys():
             exec('%s = symbols(\'%s\')' % (ap, ap))
-        # evaluation
-        if eval(self.constraints['goal']).subs(evaluated_APs):  # goal
+
+        if eval(self.constraints['goal']).subs(evaluated_APs):
             next_q = 1
-        elif eval(self.constraints['stay']).subs(evaluated_APs):  # keep planning
+        elif eval(self.constraints['stay']).subs(evaluated_APs):
             next_q = 0
-        else:  # fail
+        else:
             next_q = -1
 
         return next_q
