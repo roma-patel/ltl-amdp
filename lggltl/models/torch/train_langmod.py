@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 from lang import Corpus
 
+# check that this works with new LTL format!
 def batchify(data, bsz):
     # Work out how cleanly we can divide the dataset into bsz parts.
     nbatch = data.size(0) // bsz
