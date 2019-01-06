@@ -275,6 +275,18 @@ class LTLAMDP():
     def _generate_AP_tree(self): # return the relationship between atomic propositions
         # TODO: WRONG CHECK!
         relation_TF = {}
+
+        '''
+        print('Cube env keys', self.cube_env.keys())
+
+        print('Cube env map:')
+        for row in self.cube_env['map']:
+            print(row); print()
+
+        for key in self.cube_env.keys():
+            print(key); print(self.cube_env[key]); print()
+        '''
+
         for key in self.ap_maps.keys():
             level = ap_maps[key][0]  # current level
             lower_list = []
@@ -283,8 +295,20 @@ class LTLAMDP():
             higher_list = []
             nothigher_list = []
 
+            lower, higher, same = [], [], []
+
             ap = self.ap_maps[key]
 
+            '''
+            for other in self.ap_maps.keys():
+                other_ap = self.ap_maps[other]
+                if other_ap[0] == level:
+                    same.append(other)
+                elif other_ap[0] < level:
+                    lower.append(other)
+                else:
+                    higher.append(other)
+            '''
             if level == 0:   # the current level
                 for key2 in self.ap_maps.keys():
                     ap2 = self.ap_maps[key2]
@@ -340,6 +364,7 @@ class LTLAMDP():
                                 'higher': higher_list, 'higher_not': nothigher_list}
 
         self.relation_TF = relation_TF
+        #print(self.relation_TF)
 
 
 
@@ -347,14 +372,21 @@ class LTLAMDP():
 if __name__ == '__main__':
     ltl_formula = 'F(b & F a)'
 #    ltl_formula = 'F (a&b)'
-    ap_maps = {'a': [1, 'state', 8], 'b': [2, 'state', 2], 'c': [2, 'state', 1], 'd': [0, 'state', (6, 1, 1)], 'e': [2, 'state', 1],
-               'f': [2, 'state', 3], 'g': [0, 'state', (1, 4, 3)]}
+    ap_maps = {'a': [1, 'state', 8], 'b': [2, 'state', 2], \
+               'c': [2, 'state', 1], 'd': [0, 'state', (6, 1, 1)], \
+               'e': [2, 'state', 1], 'f': [2, 'state', 3], \
+               'g': [0, 'state', (1, 4, 3)]}
     ltl_amdp = LTLAMDP(ltl_formula, ap_maps, slip_prob=0.0)
 
+    print('Generating LTL AP tree')
     ltl_amdp._generate_AP_tree()
     #ltl_amdp.solve_debug()
-    ltl_amdp.solve()
+    #ltl_amdp.solve()
     print("End")
+
+
+
+
 
 
 

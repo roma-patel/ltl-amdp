@@ -314,7 +314,7 @@ def make_grid_world_from_file(file_name, randomize=False, num_goals=1, name=None
 def main():
     grid_world = GridWorldMDP(5, 10, (1, 1), (6, 7))
 
-    grid_world.visualize()
+    grid_world.visualize_value()
 
 if __name__ == "__main__":
     main()
