@@ -13,7 +13,8 @@ import sys
 # new version for ltl
 from simple_rl.planning import ValueIteration
 from simple_rl.utils import mdp_visualizer as mdpv
-
+import numpy as np
+import os, json
 
 def draw_state(screen,
                cleanup_mdp,
@@ -56,6 +57,10 @@ def draw_state(screen,
     cell_width = (scr_width - width_buffer * 2) / width
     cell_height = (scr_height - height_buffer * 2) / height
 
+
+    ## roma -- make smaller!
+    cell_width -= 10; cell_height -= 10
+
     print('Cell width: ', cell_width)
     print('Cell height: ', cell_height)
     print('Width buffer: ', width_buffer)
@@ -78,6 +83,59 @@ def draw_state(screen,
     # if draw_statics:
         # For each row:
 
+    def load_cube():
+        a = np.load(os.getcwd() + '/AMDP/cube_env_1.npy').item()
+
+        rooms, fin_dict = a['room_to_locs'], {}
+        idx_to_colour = a['attribute_color']
+        colour_to_idx = {}
+        for item in idx_to_colour.items():
+            colour, idx = item[1], item[0]
+            if colour not in colour_to_idx.keys():
+                colour_to_idx[colour] = []
+            colour_to_idx[colour].append(idx)
+
+
+        for colour in colour_to_idx:
+            fin_dict[colour] = {0: [], 1: [], 2: []}
+        for key in rooms:
+            if key not in idx_to_colour:
+                colour = 'None'
+            else:
+                colour = idx_to_colour[key]
+
+            if colour == 'None': continue
+
+            points_3d = rooms[key]
+            floor = points_3d[0][2] - 1
+
+
+            if floor == 0: floor = 2
+            elif floor == 2: floor = 0
+            points_2d = [(item[0]-1, item[1]-1) for item in points_3d]
+
+            fin_dict[colour][floor] = points_2d
+        return fin_dict
+
+
+    def load_points_from_state_seq():
+        # load states into list of tuples (x, y, floor)
+
+        points = 's: (1,1,1)\ns: (2,1,1)\ns: (3,1,1)\ns: (4,1,1)\ns: (5,1,1)\ns: (5,2,1)\ns: (5,3,1)\ns: (5,4,1)\ns: (5,3,1)\ns: (6,3,0)\ns: (5,3,0)\ns: (4,3,0)\ns: (3,3,0)\ns: (3,4,0)\ns: (2,4,0)\ns: (2,3,0)\ns: (2,2,2)'.split('\n')
+        points = [item.split(')')[0].split('(')[-1].split(',') for item in points]
+        points = [[int(val) for val in item] for item in points]
+        '''
+        f = open(os.getcwd() + '/results/state_seq.txt', 'r')
+        for line in f: print(line)
+        print(os.getcwd() + '/results/state_seq.txt')
+        temp = f.readlines()
+        print(temp)
+        points = [item.strip() for item in temp]
+        print(points)
+        points = [item.split(')')[0].split('(')[-1].split(',') for item in points]
+        print(points)
+        '''
+        return points
 
     def draw_levels(i, j, level, cell_width, cell_height, width_buffer, height_buffer):
         x, y =  width_buffer + cell_height * i,  height_buffer + cell_width * j
@@ -97,8 +155,9 @@ def draw_state(screen,
     ###############
     import math
     def draw_3D_room(i, j, level, cell_width, cell_height, width_buffer, height_buffer, theta, curr_x, curr_y, colour, room_name):
-        print('Drawing room')
+        #print('Drawing room')
 
+        #print(colour)
         x, y = curr_x, curr_y
 
         length = cell_height; breadth = cell_width
@@ -107,29 +166,79 @@ def draw_state(screen,
         p4 = (x - abs(int(breadth*math.cos(theta))), y + abs(int(breadth*math.sin(theta))))
 
         point_list = [p1, p2, p3, p4]
-        inner_points = [(p1[0] + 10, p1[1] + 10), (p2[0] - 10, p2[1] + 10), (p3[0] - 10, p3[1] -10), (p4[0] + 10, p4[1] - 10)]
-        #r = pygame.draw.lines(screen, (255, 0, 0), True, inner_points, 13)
+        inner_points = [(p1[0] + 10, p1[1] + 10), (p2[0] - 15, p2[1] + 10), (p3[0] - 10, p3[1] -10), (p4[0] + 15, p4[1] - 10)]
 
-        r = pygame.draw.lines(screen, colour, True, inner_points, 13)
+        thickness = 2
+        if room_name == 'room_23':
+            colour = get_rgb('blue')
 
-        r = pygame.draw.lines(screen, (46, 49, 49), True, point_list, 2)
+
+        #r = pygame.draw.lines(screen, colour, False, inner_points, 1)
+        #r = pygame.draw.lines(screen, (255,   0,   0), True, inner_points, 1)
+
+        pygame.draw.lines(screen, colour, True, point_list, thickness)
+        fill_room(screen, colour, point_list)
 
         # connect elevator
 
-        points_list = [[], [], [], []]
-        #for points in points_list:
-            #r = pygame.draw.lines(screen, (46, 49, 49), True, points, 2)
+        #print(point_list)
+        #for point in point_list[1:]:
+        for point in point_list:
+            points = [point, (point[0], point[1] - 200*level)]
+
+
+
+            #if room_name in ['room_16', 'room_17', 'room_22', 'room_23']:
+            if colour == (0, 0, 255):
+                pygame.draw.lines(screen, colour, True, points, 10)
+
+            #if room_name == 'room_23':
+                #colour = get_rgb('blue')
+                #pygame.draw.lines(screen, colour, True, points, 3)
+                #fill_room(screen, colour, points)
+
 
         return p4
 
+
+    def fill_room(screen, colour, old_points):
+        while True:
+            x1, x2, x3, x4 = old_points[0][0], old_points[1][0], old_points[2][0], old_points[3][0]
+            y1, y2, y3, y4 = old_points[0][1], old_points[1][1], old_points[2][1], old_points[3][1]
+
+            if x1 >= x2 or y1 >= y3: break
+            if x4 >= x3 or y2 >= y4: break
+
+            x1 += 1; x2 -=1; x3 -=1; x4 +=1; 
+            y1 += 1; y3 -=1; y2 += 1; y4 -= 1
+
+            '''
+            old_points[0][0] += 1; old_points[3][0] += 1
+            old_points[1][0] -=1; old_points[2][0] -= 1
+
+            old_points[0][1] += 1; old_points[3][1] -= 1
+            old_points[1][1] +=1; old_points[2][1] -= 1
+            '''
+
+            old_points = [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+            pygame.draw.lines(screen, colour, True, old_points, 1)
+
+
     # (x, y, level)
     colour_dict = {'red': {2: [(0, 2), (1, 2), (0, 1), (1, 1)], 1: [], 0: []}, 'green': {2: [], 1: [], 0: []}, 'yellow': {2: [], 1: [], 0: []}}
+
+
+    colour_dict = load_cube()
+    #print(colour_dict)
+    
     def draw_floor(level):
-        print('\nDrawing floor\n')
-        rooms_width, rooms_height = 4, 3
+        #print('\nDrawing floor\n')
+        rooms_width, rooms_height = 6, 4
+
         theta = math.pi/3
         i, j = 0, 0
         curr_x, prev_x, curr_y, prev_y = 72, 72, 102, 102
+
 
         for i in range(rooms_width):
             for j in range(rooms_height):
@@ -146,16 +255,84 @@ def draw_state(screen,
                     if (i, j) in colour_dict[key][level]:
                         colour = get_rgb(key)
                 room_name = 'room_' + str(rooms_height*i+j)
-                print(room_name)
+                #print(room_name)
                 p4 = draw_3D_room(i, j, level, cell_width, cell_height, width_buffer, height_buffer, theta, curr_x, curr_y, colour, room_name)
                 #prev_x = width_buffer + cell_height * i + 100
                 prev_x, prev_y = p4[0], p4[1]
 
     
+    def get_center(room):
+        
+        theta = math.pi/3
+
+        # for center point of room
+        i, j, level = room[0]-1, room[1]-1, room[2]
+        print('(i, j) ', i, j)
+
+        curr_x, prev_x, curr_y, prev_y = 72, 72, 102, 102
+
+        
+        if j == 0: 
+            curr_x = prev_x = width_buffer + cell_height * i + 100
+            curr_y = prev_y = height_buffer + cell_width * j + 200*level
+
+        else:
+            curr_x, curr_y = prev_x, prev_y
+        
+        curr_x =  width_buffer + cell_height * i + 100
+        curr_y = height_buffer + cell_width * j + 200*level
+
+        colour = get_rgb('pink')
+    
+
+        x, y = curr_x, curr_y
+
+        length = cell_height; breadth = cell_width
+        p1 = (x, y); p2 = (x + length, y)
+        p3 = (x + length - abs((breadth*math.cos(theta))), y + abs(int(breadth*math.sin(theta))))
+        p4 = (x - abs(int(breadth*math.cos(theta))), y + abs(int(breadth*math.sin(theta))))
+
+        point_list = [p1, p2, p3, p4]
+        return point_list
+
+        return (x, y)
+
+
 
     draw_floor(0)
     draw_floor(1)
     draw_floor(2)
+
+    # draw agent
+    agent_location = (155, 100)
+    fname = os.getcwd() + '/figures/robot4.png'
+    agent = pygame.transform.scale(pygame.image.load(fname), (60, 60))
+    screen.blit(agent, agent_location)
+
+    # draw path
+    path =  load_points_from_state_seq()
+    print('Path: ', path)
+    colour = get_rgb('pink')
+    # we need a list of pairs of points which will connect the path
+    prev = path[0]
+
+    #path = path [:3]
+    print('Drawing path\n\n')
+    for point_3d in path[1:]:
+        #print(pair)
+        current = point_3d
+        prev_2d = get_center(prev)
+        current_2d = get_center(current)
+        print(prev)
+        print(prev_2d); 
+        print(current); print(current_2d); print()
+        point_list = get_center(current)
+        pygame.draw.lines(screen, colour, True, point_list, 3)
+
+        prev = current
+        
+
+
 
     return None
 
@@ -419,5 +596,9 @@ def get_rgb(color):
         return 237, 138, 18
     if color == "pink":
         return 247, 2, 243
+    if color == "black":
+        return 46, 49, 49
+    if color == "white":
+        return 0, 0, 0
 
 

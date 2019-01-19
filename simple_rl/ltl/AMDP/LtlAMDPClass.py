@@ -1,9 +1,10 @@
 import sympy
 import spot
+import time
 from simple_rl.ltl.LTLautomataClass import LTLautomata
 
 # Generic AMDP imports.
-from simple_rl.amdp.AMDPSolverClass import AMDPAgent
+from simple_rl.ltl.AMDP.AMDPSolver2Class import AMDPAgent
 from simple_rl.amdp.AMDPTaskNodesClass import PrimitiveAbstractTask
 
 # Abstract grid world imports.
@@ -19,7 +20,7 @@ from simple_rl.run_experiments import run_agents_on_mdp
 
 
 class LTLAMDP():
-    def __init__(self, ltlformula, ap_maps, slip_prob=0.01):
+    def __init__(self, ltlformula, ap_maps, env_file=[], slip_prob=0.01, verbose=False):
         '''
 
         :param ltlformula: string, ltl formulation ex) a & b
@@ -28,44 +29,26 @@ class LTLAMDP():
         '''
         self.automata = LTLautomata(ltlformula) # Translate LTL into the automata
         self.ap_maps = ap_maps
-        self.cube_env = build_cube_env() #define environment
+        self.cube_env = env_file[0] #build_cube_env() #define environment
         self._generate_AP_tree() # relationship between atomic propositions
         # simplify automata
         self.automata._simplify_dict(self.relation_TF)
         self.slip_prob = slip_prob
+        self.verbose = verbose
 
-
-    def solve_debug(self):
-        constraints={'goal': 'a', 'stay': '~a'}
-        sub_ap_maps={'a': (2, 'state', 3), 'b': (1, 'state', 2), 'c': (0, 'state', (1, 4, 1))}
-
-        # 2. Parse: Which level corresponds to the current sub - problem
-        sub_level = 2
-        for ap in sub_ap_maps.keys():
-            if ap in constraints['goal'] or ap in constraints['stay']:
-
-                sub_level = min(sub_level, sub_ap_maps[ap][0])
-
-        # 3. Solve AMDP
-
-        if sub_level == 0:
-            self._solve_subproblem_L0(constraints=constraints, ap_maps=sub_ap_maps)
-
-        elif sub_level == 1:
-            # solve
-            self._solve_subproblem_L1(constraints=constraints, ap_maps=sub_ap_maps)
-        elif sub_level == 2:
-            # solve
-            self._solve_subproblem_L2(constraints=constraints, ap_maps=sub_ap_maps)
-
-    def solve(self, init_loc=(1, 1, 1)):
+    def solve(self, init_loc=(1, 1, 1), FLAG_LOWEST=False):
         Q_init = self.automata.init_state
         Q_goal = self.automata.get_accepting_states()
+        Paths_saved = {}
+        backup_num = 0
 
         [q_paths, q_words]=self.automata.findpath(Q_init, Q_goal[0])   # Find a path of states of automata
 
         n_path = len(q_paths) # the number of paths
 
+        len_action_opt = 1000
+        state_seq_opt = []
+        action_seq_opt = []
         # Find a path in the environment
         for np in range(0, n_path):
             flag_success = True
@@ -77,58 +60,88 @@ class LTLAMDP():
             state_seq = []
             cur_stay= []
 
+            len_action = 0
             for tt in range(0, len(cur_words)):
-                trans_fcn = self.automata.trans_dict[cur_path[tt]]
-                # 1. extract constraints
-                constraints = {}
-                constraints['goal'] = cur_words[tt]
-                constraints['stay'] = [s for s in trans_fcn.keys() if trans_fcn[s] == cur_path[tt]][0]
-                cur_stay.append(constraints['stay'])
-                # 2. Parse: Which level corresponds to the current sub - problem
-                sub_ap_maps = {}
-                sub_level = 2
-                for ap in self.ap_maps.keys():
-                    if ap in constraints['goal'] or ap in constraints['stay']:
-                        sub_ap_maps[ap] = ap_maps[ap]
-                        sub_level = min(sub_level, sub_ap_maps[ap][0])
-                print("----- Solve in level {} MDP -----".format(sub_level))
-                # 3. Solve AMDP
-                if sub_level == 0:
-                    action_seq_sub, state_seq_sub = self._solve_subproblem_L0(init_locs=cur_loc, constraints=constraints, ap_maps =sub_ap_maps)
+                # do not find a solution again if the problem is solved once,
+                if (cur_path[tt], cur_path[tt+1], cur_loc) in Paths_saved.keys():
 
-                elif sub_level == 1:
-                    # solve
-                    action_seq_sub, state_seq_sub = self._solve_subproblem_L1(init_locs=cur_loc, constraints=constraints, ap_maps=sub_ap_maps)
-                elif sub_level == 2:
-                    # solve
-                    action_seq_sub, state_seq_sub = self._solve_subproblem_L2(init_locs=cur_loc, constraints=constraints, ap_maps=sub_ap_maps)
+                    state_seq_sub = Paths_saved[(cur_path[tt], cur_path[tt+1], cur_loc)]['state_seq_sub']
+                    action_seq_sub = Paths_saved[(cur_path[tt], cur_path[tt + 1], cur_loc)]['action_seq_sub']
+                    backup_num_sub = 0
+                    cur_stay = Paths_saved[(cur_path[tt], cur_path[tt + 1], cur_loc)]['cur_stay']
+
+                else:
+                    trans_fcn = self.automata.trans_dict[cur_path[tt]]
+                    # 1. extract constraints
+                    constraints = {}
+                    constraints['goal'] = cur_words[tt]
+                    constraints['stay'] = [s for s in trans_fcn.keys() if trans_fcn[s] == cur_path[tt]][0]
+                    cur_stay.append(constraints['stay'])
+                    # 2. Parse: Which level corresponds to the current sub - problem
+                    sub_ap_maps = {}
+                    sub_level = 2
+                    for ap in self.ap_maps.keys():
+                        if ap in constraints['goal'] or ap in constraints['stay']:
+                            sub_ap_maps[ap] = self.ap_maps[ap]
+                            sub_level = min(sub_level, sub_ap_maps[ap][0])
+                    # solve at the lowest level
+                    if FLAG_LOWEST:
+                        sub_level = 0
+
+                    if self.verbose:
+                        print("----- Solve in level {} MDP : goal {}, stay {} -----".format(sub_level,constraints['goal'], constraints['stay']))
+                    # 3. Solve AMDP
+                    if sub_level == 0:
+                        action_seq_sub, state_seq_sub, backup_num_sub = self._solve_subproblem_L0(init_locs=cur_loc, constraints=constraints, ap_maps =sub_ap_maps)
+
+                    elif sub_level == 1:
+                        # solve
+                        action_seq_sub, state_seq_sub, backup_num_sub = self._solve_subproblem_L1(init_locs=cur_loc, constraints=constraints, ap_maps=sub_ap_maps)
+                    elif sub_level == 2:
+                        # solve
+                        action_seq_sub, state_seq_sub, backup_num_sub = self._solve_subproblem_L2(init_locs=cur_loc, constraints=constraints, ap_maps=sub_ap_maps)
 
 
+                    # Save solution
+                    Paths_saved[(cur_path[tt], cur_path[tt+1], cur_loc)] = {'state_seq_sub': state_seq_sub,
+                                                                        'action_seq_sub': action_seq_sub, 'backup_num_sub': backup_num_sub,
+                                                                            'cur_words': cur_words, 'cur_stay': cur_stay}
                 # update
+                backup_num = backup_num + backup_num_sub
                 state_seq.append(state_seq_sub)
                 action_seq.append(action_seq_sub)
-                cur_loc = (state_seq_sub[-1].x, state_seq_sub[-1].y, state_seq_sub[-1].z)
+                len_action = len_action + len(action_seq_sub)
 
+                cur_loc = (state_seq_sub[-1].x, state_seq_sub[-1].y, state_seq_sub[-1].z)
                 if state_seq_sub[-1].q != 1:
                     flag_success = False
                     break
 
-            print("=====================================================")
             if flag_success:
-                print("[Success] Plan for a path {} in DBA".format(np))
-            else:
-                print("[Fail] Plan for a path {} in DBA".format(np))
-            for k in range(len(action_seq)):
-                print("Goal: {}, Stay: {}".format(cur_words[k],cur_stay[k]))
-                for i in range(len(action_seq[k])):
-                    room_number, floor_number = self._get_abstract_number(state_seq[k][i])
+                if len_action_opt > len_action:
+                    state_seq_opt = state_seq
+                    action_seq_opt = action_seq
+                    len_action_opt = len_action
+                if self.verbose:
+                    print("=====================================================")
+                    if flag_success:
+                        print("[Success] Plan for a path {} in DBA".format(np))
+                    else:
+                        print("[Fail] Plan for a path {} in DBA".format(np))
+                    for k in range(len(action_seq)):
+                        print("Goal: {}, Stay: {}".format(cur_words[k], cur_stay[k]))
+                        for i in range(len(action_seq[k])):
+                            room_number, floor_number = self._get_abstract_number(state_seq[k][i])
 
-                    print("\t {} in room {} on the floor {}, {}".format(state_seq[k][i], room_number, floor_number, action_seq[k][i]))
-                print('\t----------------------------------------')
-            room_number, floor_number = self._get_abstract_number(state_seq[k][-1])
-            print("\t {} in room {} on the floor {}".format(state_seq[k][-1], room_number, floor_number))
+                            print("\t {} in room {} on the floor {}, {}".format(state_seq[k][i], room_number, floor_number, action_seq[k][i]))
+                        print('\t----------------------------------------')
+                    room_number, floor_number = self._get_abstract_number(state_seq[k][-1])
+                    print("\t {} in room {} on the floor {}".format(state_seq[k][-1], room_number, floor_number))
 
-            print("=====================================================")
+                    print("=====================================================")
+
+        return state_seq_opt, action_seq_opt, len_action_opt, backup_num
+
     def _get_room_number(self, state):
         room_number = 0
         for r in range(1, self.cube_env['num_room'] + 1):
@@ -153,162 +166,164 @@ class LTLAMDP():
         return room_number, floor_number
 
 
-    def _solve_subproblem_L0(self, init_locs=(1, 1, 1), constraints={}, ap_maps={}): #TODO
-        mdp = RoomCubeMDP(init_loc=init_locs, env_file = [self.cube_env], constraints = constraints, ap_maps = ap_maps, slip_prob=self.slip_prob)
-        value_iter = ValueIteration(mdp, sample_rate = 5)
+    def _solve_subproblem_L0(self, init_locs=(1, 1, 1), constraints={},
+                             ap_maps={}, verbose=False): #TODO
+        mdp = RoomCubeMDP(init_loc=init_locs, env_file = [self.cube_env], constraints = constraints, ap_maps = ap_maps,
+                          slip_prob=self.slip_prob)
+        value_iter = ValueIteration(mdp, sample_rate = 1, max_iterations=50)
         value_iter.run_vi()
+        num_backup = value_iter.get_num_backups_in_recent_run()
 
         # Value Iteration.
         action_seq, state_seq = value_iter.plan(mdp.get_init_state())
 
-        # TODO: Extract policy by value_iter.policy(state)... What about returning value_iter?
-        print("Plan for", mdp)
-        for i in range(len(action_seq)):
-            print("\t", state_seq[i], action_seq[i])
-        print("\t", state_seq[-1])
+        if verbose:
+            print("Plan for", mdp)
+            for i in range(len(action_seq)):
+                print("\t", state_seq[i], action_seq[i])
+            print("\t", state_seq[-1])
 
-        return action_seq, state_seq
+        return action_seq, state_seq, num_backup
 
 
-    def _solve_subproblem_L1(self, init_locs=(1, 1, 1), constraints={}, ap_maps={}):
+    def _solve_subproblem_L1(self, init_locs=(1, 1, 1), constraints={}, ap_maps={},
+                             verbose=False):
 
         # define l0 domain
         l0Domain = RoomCubeMDP(init_loc=init_locs, env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps,
                                slip_prob=self.slip_prob)
+        backup_num = 0
+        # if the current state satisfies the constraint already, we don't have to solve it.
+        if l0Domain.init_state.q == 1:
+            action_seq = []
+            state_seq = [l0Domain.init_state]
+        else:
+            # define l1 domain
+            start_room = l0Domain.get_room_numbers(init_locs)[0]
+            l1Domain = CubeL1MDP(start_room, env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps,
+                                 slip_prob=self.slip_prob)
 
-        # define l1 domain
-        start_room = l0Domain.get_room_numbers(init_locs)[0]
-        l1Domain = CubeL1MDP(start_room, env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps,
-                             slip_prob=self.slip_prob)
+            policy_generators = []
+            l0_policy_generator = CubeL0PolicyGenerator(l0Domain, env_file=[self.cube_env])
+            l1_policy_generator = CubeL1PolicyGenerator(l0Domain, AbstractCubeL1StateMapper(l0Domain), env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps)
 
-        policy_generators = []
-        l0_policy_generator = CubeL0PolicyGenerator(l0Domain, env_file=[self.cube_env])
-        l1_policy_generator = CubeL1PolicyGenerator(l0Domain, AbstractCubeL1StateMapper(l0Domain), env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps)
+            policy_generators.append(l0_policy_generator)
+            policy_generators.append(l1_policy_generator)
 
-        policy_generators.append(l0_policy_generator)
-        policy_generators.append(l1_policy_generator)
+            # 2 levels
+            l1Subtasks = [PrimitiveAbstractTask(action) for action in l0Domain.ACTIONS]
+            a2rt = [CubeL1GroundedAction(a, l1Subtasks, l0Domain) for a in l1Domain.ACTIONS]
+            l1Root = CubeRootL1GroundedAction(l1Domain.action_for_room_number(0), a2rt, l1Domain,
+                                              l1Domain.terminal_func, l1Domain.reward_func, constraints=constraints, ap_maps=ap_maps)
 
-        # 2 levels
-        l1Subtasks = [PrimitiveAbstractTask(action) for action in l0Domain.ACTIONS]
-        a2rt = [CubeL1GroundedAction(a, l1Subtasks, l0Domain) for a in l1Domain.ACTIONS]
-        l1Root = CubeRootL1GroundedAction(l1Domain.action_for_room_number(0), a2rt, l1Domain,
-                                          l1Domain.terminal_func, l1Domain.reward_func, constraints=constraints, ap_maps=ap_maps)
+            agent = AMDPAgent(l1Root, policy_generators, l0Domain)
+            agent.solve()
+            backup_num = agent.backup_num
 
-        agent = AMDPAgent(l1Root, policy_generators, l0Domain)
-        agent.solve()
+            state = RoomCubeState(init_locs[0], init_locs[1], init_locs[2], 0)
+            action_seq = []
+            state_seq = [state]
+            while state in agent.policy_stack[0].keys():
+                action = agent.policy_stack[0][state]
+                state = l0Domain._transition_func(state, action)
 
-        state = RoomCubeState(init_locs[0], init_locs[1], init_locs[2], 0)
-        action_seq = []
-        state_seq = [state]
-        while state in agent.policy_stack[0].keys():
-            action = agent.policy_stack[0][state]
-            state = l0Domain._transition_func(state, action)
+                action_seq.append(action)
+                state_seq.append(state)
 
-            action_seq.append(action)
-            state_seq.append(state)
 
-        print("Plan")
-        for i in range(len(action_seq)):
-            print("\t", state_seq[i], action_seq[i])
-        print("\t", state_seq[-1])
-        return action_seq, state_seq
 
-    def _solve_subproblem_L2(self, init_locs=(1, 1, 1), constraints={}, ap_maps={}):
+        if verbose:
+            print("Plan")
+            for i in range(len(action_seq)):
+                print("\t", state_seq[i], action_seq[i])
+            print("\t", state_seq[-1])
+
+        return action_seq, state_seq, backup_num
+
+    def _solve_subproblem_L2(self, init_locs=(1, 1, 1), constraints={},
+                             ap_maps={}, verbose=False):
         # define l0 domain
         l0Domain = RoomCubeMDP(init_loc=init_locs, env_file=[self.cube_env], constraints=constraints,
                                ap_maps=ap_maps, slip_prob= self.slip_prob)
+        backup_num = 0
+        # if the current state satisfies the constraint already, we don't have to solve it.
+        if l0Domain.init_state.q == 1:
+            action_seq = []
+            state_seq = [l0Domain.init_state]
+        else:
+            # define l1 domain
+            start_room = l0Domain.get_room_numbers(init_locs)[0]
+            start_floor = l0Domain.get_floor_numbers(init_locs)[0]
 
-        # define l1 domain
-        start_room = l0Domain.get_room_numbers(init_locs)[0]
-        start_floor = l0Domain.get_floor_numbers(init_locs)[0]
+            l1Domain = CubeL1MDP(start_room, env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps)
+            l2Domain = CubeL2MDP(start_floor, env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps)
 
-        l1Domain = CubeL1MDP(start_room, env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps)
-        l2Domain = CubeL2MDP(start_floor, env_file=[self.cube_env], constraints=constraints, ap_maps=ap_maps)
+            policy_generators = []
+            l0_policy_generator = CubeL0PolicyGenerator(l0Domain, env_file=[self.cube_env])
+            l1_policy_generator = CubeL1PolicyGenerator(l0Domain, AbstractCubeL1StateMapper(l0Domain),
+                                                        env_file=[self.cube_env], constraints=constraints,
+                                                        ap_maps=ap_maps)
+            l2_policy_generator = CubeL2PolicyGenerator(l1Domain, AbstractCubeL2StateMapper(l1Domain),
+                                                        env_file=[self.cube_env], constraints=constraints,
+                                                        ap_maps=ap_maps)
 
-        policy_generators = []
-        l0_policy_generator = CubeL0PolicyGenerator(l0Domain, env_file=[self.cube_env])
-        l1_policy_generator = CubeL1PolicyGenerator(l0Domain, AbstractCubeL1StateMapper(l0Domain),
-                                                    env_file=[self.cube_env], constraints=constraints,
-                                                    ap_maps=ap_maps)
-        l2_policy_generator = CubeL2PolicyGenerator(l1Domain, AbstractCubeL2StateMapper(l1Domain),
-                                                    env_file=[self.cube_env], constraints=constraints,
-                                                    ap_maps=ap_maps)
+            policy_generators.append(l0_policy_generator)
+            policy_generators.append(l1_policy_generator)
+            policy_generators.append(l2_policy_generator)
 
-        policy_generators.append(l0_policy_generator)
-        policy_generators.append(l1_policy_generator)
-        policy_generators.append(l2_policy_generator)
+            # 2 levels
+            l1Subtasks = [PrimitiveAbstractTask(action) for action in l0Domain.ACTIONS]
+            a2rt = [CubeL1GroundedAction(a, l1Subtasks, l0Domain) for a in l1Domain.ACTIONS]
+            a2rt2 = [CubeL2GroundedAction(a, a2rt, l1Domain) for a in l2Domain.ACTIONS]
 
-        # 2 levels
-        l1Subtasks = [PrimitiveAbstractTask(action) for action in l0Domain.ACTIONS]
-        a2rt = [CubeL1GroundedAction(a, l1Subtasks, l0Domain) for a in l1Domain.ACTIONS]
-        a2rt2 = [CubeL2GroundedAction(a, a2rt, l1Domain) for a in l2Domain.ACTIONS]
+            l2Root = CubeRootL2GroundedAction(l2Domain.action_for_floor_number(1), a2rt2, l2Domain,
+                                              l2Domain.terminal_func, l2Domain.reward_func, constraints=constraints,
+                                              ap_maps=ap_maps)
 
-        l2Root = CubeRootL2GroundedAction(l2Domain.action_for_floor_number(1), a2rt2, l2Domain,
-                                          l2Domain.terminal_func, l2Domain.reward_func, constraints=constraints,
-                                          ap_maps=ap_maps)
+            agent = AMDPAgent(l2Root, policy_generators, l0Domain)
 
-        agent = AMDPAgent(l2Root, policy_generators, l0Domain)
+            # Test - base, l1 domain
+            l2Subtasks = [PrimitiveAbstractTask(action) for action in l1Domain.ACTIONS]
 
-        # Test - base, l1 domain
-        l2Subtasks = [PrimitiveAbstractTask(action) for action in l1Domain.ACTIONS]
+            agent.solve()
+            backup_num = agent.backup_num
 
-        agent.solve()
+            # Extract action seq, state_seq
+            state = RoomCubeState(init_locs[0], init_locs[1], init_locs[2], 0)
+            action_seq = []
+            state_seq = [state]
+            while state in agent.policy_stack[0].keys():
+                action = agent.policy_stack[0][state]
+                state = l0Domain._transition_func(state, action)
 
-        # Extract action seq, state_seq
-        state = RoomCubeState(init_locs[0], init_locs[1], init_locs[2], 0)
-        action_seq = []
-        state_seq = [state]
-        while state in agent.policy_stack[0].keys():
-            action = agent.policy_stack[0][state]
-            state = l0Domain._transition_func(state, action)
+                action_seq.append(action)
+                state_seq.append(state)
 
-            action_seq.append(action)
-            state_seq.append(state)
 
-        print("Plan")
-        for i in range(len(action_seq)):
-            print("\t", state_seq[i], action_seq[i])
-        print("\t", state_seq[-1])
-        return action_seq, state_seq
+
+        # Debuging
+        if verbose:
+            print("Plan")
+            for i in range(len(action_seq)):
+                print("\t", state_seq[i], action_seq[i])
+            print("\t", state_seq[-1])
+
+        return action_seq, state_seq, backup_num
 
 
     def _generate_AP_tree(self): # return the relationship between atomic propositions
         # TODO: WRONG CHECK!
         relation_TF = {}
-
-        '''
-        print('Cube env keys', self.cube_env.keys())
-
-        print('Cube env map:')
-        for row in self.cube_env['map']:
-            print(row); print()
-
-        for key in self.cube_env.keys():
-            print(key); print(self.cube_env[key]); print()
-        '''
-
         for key in self.ap_maps.keys():
-            level = ap_maps[key][0]  # current level
+            level = self.ap_maps[key][0]  # current level
             lower_list = []
             notlower_list = []
             samelevel_list = []
             higher_list = []
             nothigher_list = []
 
-            lower, higher, same = [], [], []
-
             ap = self.ap_maps[key]
 
-            '''
-            for other in self.ap_maps.keys():
-                other_ap = self.ap_maps[other]
-                if other_ap[0] == level:
-                    same.append(other)
-                elif other_ap[0] < level:
-                    lower.append(other)
-                else:
-                    higher.append(other)
-            '''
             if level == 0:   # the current level
                 for key2 in self.ap_maps.keys():
                     ap2 = self.ap_maps[key2]
@@ -364,27 +379,33 @@ class LTLAMDP():
                                 'higher': higher_list, 'higher_not': nothigher_list}
 
         self.relation_TF = relation_TF
-        #print(self.relation_TF)
 
 
 
 
 if __name__ == '__main__':
-    ltl_formula = 'F(b & F a)'
-#    ltl_formula = 'F (a&b)'
-    ap_maps = {'a': [1, 'state', 8], 'b': [2, 'state', 2], \
-               'c': [2, 'state', 1], 'd': [0, 'state', (6, 1, 1)], \
-               'e': [2, 'state', 1], 'f': [2, 'state', 3], \
-               'g': [0, 'state', (1, 4, 3)]}
-    ltl_amdp = LTLAMDP(ltl_formula, ap_maps, slip_prob=0.0)
 
-    print('Generating LTL AP tree')
-    ltl_amdp._generate_AP_tree()
-    #ltl_amdp.solve_debug()
-    #ltl_amdp.solve()
-    print("End")
+    cube_env = build_cube_env()
+
+    init_loc = (1,1,1)
+    ltl_formula = ' F(a & F( b & Fc))'
+    ap_maps = {'c': [0, 'state', (1, 4, 3)], 'a': [2, 'state', 1], 'b': [2, 'state', 2]}
+
+    #ltl_formula = 'F(b & Fa)'
+    #ap_maps = {'a': [2, 'state', 2], 'b': [1, 'state', 11]}
+    #, 'c': [2, 'state', 1], 'd': [0, 'state', (6, 1, 1)], 'e': [2, 'state', 1],
+    #           'f': [2, 'state', 3], 'g': [0, 'state', (1, 4, 3)]}
+    start_time = time.time()
+    ltl_amdp = LTLAMDP(ltl_formula, ap_maps, env_file=[cube_env], slip_prob=0.0, verbose=True)
 
 
+    sseq, aseq, len_actions, backup = ltl_amdp.solve(init_loc, FLAG_LOWEST=False)
+
+    computing_time = time.time()-start_time
+
+    print("Summary")
+    print("\t Time: {} seconds, the number of actions: {}, backup: {}"
+          .format(round(computing_time, 3), len_actions, backup))
 
 
 

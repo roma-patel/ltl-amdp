@@ -36,7 +36,7 @@ class LTLGridWorldMDP(GridWorldMDP):
 
     def _transition_func(self, state, action):
         next_state_xy = super()._transition_func(state, action)
-        #print('{}, {}'.format(next_state_xy.x, next_state_xy.y))
+        print('{}, {}'.format(next_state_xy.x, next_state_xy.y))
         # evaluate APs
         evaluated_APs = self._evaluate_APs(next_state_xy, self.ap_map)
 #        if (next_state_xy.x == 6) & (next_state_xy.y == 3):
@@ -66,65 +66,6 @@ class LTLGridWorldMDP(GridWorldMDP):
 
 #    def _evaluate(self, state_env): # evaluate atomic propositions
 
-from simple_rl.utils import mdp_visualizer as mdpv
-from simple_rl.planning import ValueIteration
-
-def ltl_visualiser(model):
-    print('Inside LTL visualiser!')
-
-
-    from simple_rl.tasks.ltl_amdp.cleanup_block import CleanUpBlock
-    from simple_rl.tasks.ltl_amdp.cleanup_door import CleanUpDoor
-    from simple_rl.tasks.ltl_amdp.cleanup_room import CleanUpRoom
-    from simple_rl.tasks.ltl_amdp.cleanup_task import CleanUpTask
-    from simple_rl.tasks.ltl_amdp.CleanupMDPClass import CleanUpMDP
-
-    task = CleanUpTask("green", "red")
-    room1 = CleanUpRoom("room1", [(x, y) for x in range(5) for y in range(3)], "blue")
-    block1 = CleanUpBlock("block1", 1, 1, color="green")
-    room2 = CleanUpRoom("room2", [(x, y) for x in range(5, 10) for y in range(3)], color="red")
-    room3 = CleanUpRoom("room3", [(x, y) for x in range(0, 10) for y in range(3, 6)], color="yellow")
-    rooms = [room1, room2, room3]
-    blocks = [block1]
-    doors = [CleanUpDoor(4, 0), CleanUpDoor(3, 2)]
-    mdp = CleanUpMDP(task, rooms=rooms, doors=doors, blocks=blocks)
-    mdp.visualize_interaction()
-
-    '''
-    #### testing old 2D visualisation
-    from simple_rl.tasks.cleanup.cleanup_block import CleanUpBlock
-    from simple_rl.tasks.cleanup.cleanup_door import CleanUpDoor
-    from simple_rl.tasks.cleanup.cleanup_room import CleanUpRoom
-    from simple_rl.tasks.cleanup.cleanup_task import CleanUpTask
-    from simple_rl.tasks.cleanup.CleanupMDPClass import CleanUpMDP
-
-    task = CleanUpTask("green", "red")
-    room1 = CleanUpRoom("room1", [(x, y) for x in range(5) for y in range(3)], "blue")
-    block1 = CleanUpBlock("block1", 1, 1, color="green")
-    block2 = CleanUpBlock("block2", 2, 4, color="purple")
-    block3 = CleanUpBlock("block3", 8, 1, color="orange")
-    room2 = CleanUpRoom("room2", [(x, y) for x in range(5, 10) for y in range(3)], color="red")
-    room3 = CleanUpRoom("room3", [(x, y) for x in range(0, 10) for y in range(3, 6)], color="yellow")
-    rooms = [room1, room2, room3]
-    blocks = [block1, block2, block3]
-    doors = [CleanUpDoor(4, 0), CleanUpDoor(3, 2)]
-    mdp = CleanUpMDP(task, rooms=rooms, doors=doors, blocks=blocks)
-    #mdp.visualize_interaction()
-    #mdp.visualize_value()
-
-    '''
-
-    return None
-
 if __name__=='__main__':
     A = LTLGridWorldMDP()
     print('done')
-
-    from simple_rl.utils import mdp_visualizer as mdpv
-    from simple_rl.tasks.cleanup.cleanup_visualizer import draw_state
-
-    #mdpv.visualize_interaction(A, draw_state)
-    #A.visualize_interaction()
-
-    ltl_visualiser(A)
-
