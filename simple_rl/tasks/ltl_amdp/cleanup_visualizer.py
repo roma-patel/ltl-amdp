@@ -25,21 +25,8 @@ def draw_state(screen,
                agent=None,
                draw_statics=False,
                agent_shape=None):
-    '''
-    Args:
-        screen (pygame.Surface)
-        grid_mdp (MDP)
-        state (State)
-        show_value (bool)
-        agent (Agent): Used to show value, by default uses VI.
-        draw_statics (bool)
-        agent_shape (pygame.rect)
 
-    Returns:
-        (pygame.Shape)
-    '''
-
-    print('\n\n\n\nInside draw state\n')
+    #print('\n\n\n\nInside draw state\n')
     # Make value dict.
     val_text_dict = defaultdict(lambda: defaultdict(float))
 
@@ -58,18 +45,7 @@ def draw_state(screen,
     cell_height = (scr_height - height_buffer * 2) / height
 
 
-    ## roma -- make smaller!
     cell_width -= 10; cell_height -= 10
-
-    print('Cell width: ', cell_width)
-    print('Cell height: ', cell_height)
-    print('Width buffer: ', width_buffer)
-    print('Height buffer: ', height_buffer)
-
-
-
-    # goal_locs = grid_mdp.get_goal_locs()
-    # lava_locs = grid_mdp.get_lavacc_locs()
     font_size = int(min(cell_width, cell_height) / 4.0)
     reg_font = pygame.font.SysFont("CMU Serif", font_size)
     cc_font = pygame.font.SysFont("Courier", font_size * 2 + 2)
@@ -77,11 +53,6 @@ def draw_state(screen,
     # room_locs = [(x + 1, y + 1) for room in cleanup_mdp.rooms for (x, y) in room.points_in_room]
     door_locs = set([(door.x + 1, door.y + 1) for door in state.doors])
 
-    # Draw the static entities.
-    # print(draw_statics)
-    # draw_statics = True
-    # if draw_statics:
-        # For each row:
 
     def load_cube():
         a = np.load(os.getcwd() + '/AMDP/cube_env_1.npy').item()
@@ -121,20 +92,24 @@ def draw_state(screen,
     def load_points_from_state_seq():
         # load states into list of tuples (x, y, floor)
 
+        '''
         points = 's: (1,1,1)\ns: (2,1,1)\ns: (3,1,1)\ns: (4,1,1)\ns: (5,1,1)\ns: (5,2,1)\ns: (5,3,1)\ns: (5,4,1)\ns: (5,3,1)\ns: (6,3,0)\ns: (5,3,0)\ns: (4,3,0)\ns: (3,3,0)\ns: (3,4,0)\ns: (2,4,0)\ns: (2,3,0)\ns: (2,2,2)'.split('\n')
+
+        # changed slightly
+        points = 's: (1,1,1)\ns: (2,1,1)\ns: (3,1,1)\ns: (4,1,1)\ns: (5,1,1)\ns: (5,2,1)\ns: (5,3,1)\ns: (5,4,1)\ns: (5,3,1)\ns: (6,3,0)\ns: (5,3,0)\ns: (4,3,0)\ns: (3,3,0)\ns: (3,4,0)\ns: (2,4,0)\ns: (2,3,0)\ns: (2,2,0)'.split('\n')
+
         points = [item.split(')')[0].split('(')[-1].split(',') for item in points]
         points = [[int(val) for val in item] for item in points]
         '''
-        f = open(os.getcwd() + '/results/state_seq.txt', 'r')
-        for line in f: print(line)
-        print(os.getcwd() + '/results/state_seq.txt')
-        temp = f.readlines()
-        print(temp)
-        points = [item.strip() for item in temp]
-        print(points)
+
+
+        #f = open(os.getcwd() + '/results/state_seq.txt', 'r')
+        f = open('/Users/romapatel/Desktop/actions.tsv', 'r')
+        points = f.readlines()
+
         points = [item.split(')')[0].split('(')[-1].split(',') for item in points]
-        print(points)
-        '''
+        points = [[int(val) for val in item] for item in points]
+        
         return points
 
     def draw_levels(i, j, level, cell_width, cell_height, width_buffer, height_buffer):
@@ -152,7 +127,8 @@ def draw_state(screen,
         r = pygame.draw.lines(screen, (46, 49, 49), True, point_list, 1)
 
 
-    ###############
+
+    # ROMA -- keep a rooma dictionary!
     import math
     def draw_3D_room(i, j, level, cell_width, cell_height, width_buffer, height_buffer, theta, curr_x, curr_y, colour, room_name):
         #print('Drawing room')
@@ -173,32 +149,17 @@ def draw_state(screen,
             colour = get_rgb('blue')
 
 
-        #r = pygame.draw.lines(screen, colour, False, inner_points, 1)
-        #r = pygame.draw.lines(screen, (255,   0,   0), True, inner_points, 1)
-
         pygame.draw.lines(screen, colour, True, point_list, thickness)
         fill_room(screen, colour, point_list)
 
         # connect elevator
-
-        #print(point_list)
-        #for point in point_list[1:]:
         for point in point_list:
             points = [point, (point[0], point[1] - 200*level)]
 
-
-
-            #if room_name in ['room_16', 'room_17', 'room_22', 'room_23']:
             if colour == (0, 0, 255):
                 pygame.draw.lines(screen, colour, True, points, 10)
 
-            #if room_name == 'room_23':
-                #colour = get_rgb('blue')
-                #pygame.draw.lines(screen, colour, True, points, 3)
-                #fill_room(screen, colour, points)
-
-
-        return p4
+        return p1, p2, p3, p4
 
 
     def fill_room(screen, colour, old_points):
@@ -233,7 +194,7 @@ def draw_state(screen,
     
     def draw_floor(level):
         #print('\nDrawing floor\n')
-        rooms_width, rooms_height = 6, 4
+        rooms_width, rooms_height, room_dict = 6, 4, {}
 
         theta = math.pi/3
         i, j = 0, 0
@@ -243,6 +204,8 @@ def draw_state(screen,
         for i in range(rooms_width):
             for j in range(rooms_height):
             
+                #print('(i, j) ', i, j)
+
                 if j == 0: 
                     curr_x = prev_x = width_buffer + cell_height * i + 100
                     curr_y = prev_y = height_buffer + cell_width * j + 200*level
@@ -256,19 +219,45 @@ def draw_state(screen,
                         colour = get_rgb(key)
                 room_name = 'room_' + str(rooms_height*i+j)
                 #print(room_name)
-                p4 = draw_3D_room(i, j, level, cell_width, cell_height, width_buffer, height_buffer, theta, curr_x, curr_y, colour, room_name)
-                #prev_x = width_buffer + cell_height * i + 100
+                p1, p2, p3, p4 = draw_3D_room(i, j, level, cell_width, cell_height, width_buffer, height_buffer, theta, curr_x, curr_y, colour, room_name)
+                #print('Last point: ', p4)
+
+                room_dict[room_name] = {'rooms_width': i, 'rooms_height': j, 'points': [p1, p2, p3, p4]}
                 prev_x, prev_y = p4[0], p4[1]
 
+        return room_dict
+
     
-    def get_center(room):
+    def get_avg(point_list):
+        x, y = 0, 0
+        for item in point_list:
+            x += float(item[0])/4; y += float(item[1])/4
+        #agent_location = (x-25, y-50)
+
+        return (x, y)
+
+    def get_center(room, rooms_0, rooms_1, rooms_2):
         
         theta = math.pi/3
 
         # for center point of room
         i, j, level = room[0]-1, room[1]-1, room[2]
-        print('(i, j) ', i, j)
+        #print('(i, j) ', i, j)
 
+        room_name = 'room_' + str(4*i + j)
+        if level == 0:
+            rooms = rooms_0
+        elif level == 1:
+            rooms = rooms_1
+        elif level == 2: 
+            rooms = rooms_2
+
+        else:
+            print(room)
+            print(level)
+            rooms = None
+        #print(level) 
+        #print(rooms[room_name]); print('\n\n\n\n\n')
         curr_x, prev_x, curr_y, prev_y = 72, 72, 102, 102
 
         
@@ -277,10 +266,15 @@ def draw_state(screen,
             curr_y = prev_y = height_buffer + cell_width * j + 200*level
 
         else:
-            curr_x, curr_y = prev_x, prev_y
+            #curr_x, curr_y = prev_x, prev_y
+            curr_x = width_buffer + cell_height * i + 100
+
+            curr_y = height_buffer + cell_width * j + 200*level
+            curr_y = height_buffer + 200*level
+
         
-        curr_x =  width_buffer + cell_height * i + 100
-        curr_y = height_buffer + cell_width * j + 200*level
+        #curr_x =  width_buffer + cell_height * i + 100
+        #curr_y = height_buffer + cell_width * j + 200*level
 
         colour = get_rgb('pink')
     
@@ -293,45 +287,72 @@ def draw_state(screen,
         p4 = (x - abs(int(breadth*math.cos(theta))), y + abs(int(breadth*math.sin(theta))))
 
         point_list = [p1, p2, p3, p4]
+
+        return rooms[room_name]['points']
         return point_list
 
         return (x, y)
 
 
 
-    draw_floor(0)
-    draw_floor(1)
-    draw_floor(2)
+    rooms_0 = draw_floor(0)
+    rooms_1 = draw_floor(1)
+    rooms_2 = draw_floor(2)
 
-    # draw agent
-    agent_location = (155, 100)
-    fname = os.getcwd() + '/figures/robot4.png'
-    agent = pygame.transform.scale(pygame.image.load(fname), (60, 60))
-    screen.blit(agent, agent_location)
 
     # draw path
-    path =  load_points_from_state_seq()
-    print('Path: ', path)
+    path =  load_points_from_state_seq()[:-1]
+
+
+    #print('\nPath: ', path)
     colour = get_rgb('pink')
     # we need a list of pairs of points which will connect the path
     prev = path[0]
 
     #path = path [:3]
-    print('Drawing path\n\n')
+    #print('Drawing path\n\n')
     for point_3d in path[1:]:
         #print(pair)
         current = point_3d
-        prev_2d = get_center(prev)
-        current_2d = get_center(current)
-        print(prev)
-        print(prev_2d); 
-        print(current); print(current_2d); print()
-        point_list = get_center(current)
+        prev_2d = get_center(prev, rooms_0, rooms_1, rooms_2)
+
+        current_2d = get_center(current, rooms_0, rooms_1, rooms_2)
+        '''
+        print('prev: ', prev)
+        print('prev 2d: ', prev_2d); 
+        print('current: ', current); print('current 2d: ', <D-k>current_2d); print()
+        '''
+
+        # print rectangles over every square
+        #point_list = get_center(current, rooms_0, rooms_1, rooms_2)
+        #pygame.draw.lines(screen, colour, True, point_list, 3)
+
+        # print a connecting line for path
+        prev_point_list = get_center(prev, rooms_0, rooms_1, rooms_2)
+        current_point_list = get_center(current, rooms_0, rooms_1, rooms_2)
+        prev_avg = get_avg(prev_point_list)
+        current_avg = get_avg(current_point_list)
+        point_list = [prev_avg, current_avg]
         pygame.draw.lines(screen, colour, True, point_list, 3)
 
         prev = current
         
 
+
+    # ROMA --- add agent at last action
+    # draw agent
+
+    last_location = get_center(path[-1], rooms_0, rooms_1, rooms_2)
+    print(path); print(path[-1]); print(last_location)
+    x, y = 0, 0
+    for item in last_location:
+        x += float(item[0])/4; y += float(item[1])/4
+    agent_location = (x-25, y-50)
+
+    #print('\nAgent location: ', agent_location)
+    fname = os.getcwd() + '/figures/robot4.png'
+    agent = pygame.transform.scale(pygame.image.load(fname), (60, 60))
+    screen.blit(agent, agent_location)
 
 
     return None

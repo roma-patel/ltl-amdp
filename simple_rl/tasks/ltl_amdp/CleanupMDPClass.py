@@ -240,7 +240,7 @@ class CleanUpMDP(MDP):
         mdpv.visualize_value(self, draw_state)
         input("Press anything to quit ")
 
-    def visualize_interaction(self):
+    def visualize_interaction(self, model):
         from simple_rl.utils import mdp_visualizer as mdpv
         from simple_rl.tasks.ltl_amdp.cleanup_visualizer import draw_state
         mdpv.visualize_interaction(self, draw_state)
