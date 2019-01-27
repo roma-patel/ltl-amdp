@@ -15,6 +15,7 @@ use_cuda = torch.cuda.is_available()
 # src, tar = '../../data/hard_pc_src2.txt', '../../data/hard_pc_tar2.txt'
 #dirpath = '/Users/romapatel/github/ltl-amdp/lggltl/'
 src, tar = '../../data/hard_pc_src_syn2.txt', '../../data/hard_pc_tar_syn2.txt'
+src, tar = '../../data/hard_pc_src_syn2_dup.txt', '../../data/hard_pc_tar_syn2_dup.txt'
 
 
 #SEED = int(sys.argv[1])

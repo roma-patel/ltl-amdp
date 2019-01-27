@@ -242,10 +242,6 @@ def duplicate_data():
     ltl_keywords = floors + landmarks + rooms
     lang_keywords = [' '.join(item for item in keyword.split('_')) for keyword in ltl_keywords]
 
-    lang_dup, ltl_dup = [], []
-
-    #lang_lines = lang_lines[:10]
-    items = []
 
     def find_list(keyword, floors, landmarks, rooms):
         if keyword in floors:
@@ -261,13 +257,43 @@ def duplicate_data():
     import itertools
 
     items = []
+    #lang_lines = lang_lines[:10]
     for i in range(len(lang_lines)):
         lang, ltl = lang_lines[i], ltl_lines[i]
         print('\nNew'); print(lang, ltl); print()
         keywords = [keyword for keyword in ltl_keywords if keyword in ltl]
         lang_keywords = [' '.join(item for item in keyword.split('_')) for keyword in keywords]
         if len(keywords) == 1:
-            continue
+            list_1 = find_list(keywords[0], floors, landmarks, rooms)
+            list_2 = []
+
+            if list_1 == None or list_2 == None:
+                items.append(lang + '\n' + ltl)
+            for item in itertools.product(list_1, list_2):
+                #ltl_orig, lang_orig = keywords[0], keywords[1]
+                #print(keywords)
+                #print(item)
+
+                ltl_old_1, ltl_old_2 = keywords[0], keywords[1]
+                ltl_new_1, ltl_new_2 = item[0], item[1]
+
+                lang_old_1, lang_old_2 = ' '.join(item for item in ltl_old_1.split('_')), ' '.join(item for item in ltl_old_2.split('_'))
+                lang_new_1, lang_new_2 = ' '.join(item for item in ltl_new_1.split('_')), ' '.join(item for item in ltl_new_2.split('_'))
+
+
+                #print('Replacing: ', ltl_old_1, ltl_new_1)
+                #print('Replacing: ', ltl_old_2, ltl_new_2)
+                ltl_dup = re.sub(ltl_old_1, ltl_new_1, ltl)
+                lang_dup = re.sub(lang_old_1, lang_new_1, lang)
+
+                ltl_dup = re.sub(ltl_old_2, ltl_new_2, ltl_dup)
+                lang_dup = re.sub(lang_old_2, lang_new_2, lang_dup)
+
+                #print(lang); print(ltl); print(lang_dup); print(ltl_dup)
+                print()
+                if ltl_dup.count(ltl_new_1) > 1 or ltl_dup.count(ltl_new_2) > 1: continue
+                if ltl_dup.count(ltl_old_1) > 1 or ltl_dup.count(ltl_old_2) > 1: continue
+                items.append(lang_dup + '\n' + ltl_dup)
         else:
             list_1 = find_list(keywords[0], floors, landmarks, rooms)
             list_2 = find_list(keywords[1], floors, landmarks, rooms)
@@ -275,11 +301,30 @@ def duplicate_data():
             if list_1 == None or list_2 == None:
                 items.append(lang + '\n' + ltl)
             for item in itertools.product(list_1, list_2):
-                ltl_dup = re.sub(keywords[0], item[0], ltl)
-                lang_dup = re.sub(lang_keywords[0], ' '.join(item for item in item[0].split('_')), ltl)
+                #ltl_orig, lang_orig = keywords[0], keywords[1]
+                #print(keywords)
+                #print(item)
+
+                ltl_old_1, ltl_old_2 = keywords[0], keywords[1]
+                ltl_new_1, ltl_new_2 = item[0], item[1]
+
+                lang_old_1, lang_old_2 = ' '.join(item for item in ltl_old_1.split('_')), ' '.join(item for item in ltl_old_2.split('_'))
+                lang_new_1, lang_new_2 = ' '.join(item for item in ltl_new_1.split('_')), ' '.join(item for item in ltl_new_2.split('_'))
 
 
+                #print('Replacing: ', ltl_old_1, ltl_new_1)
+                #print('Replacing: ', ltl_old_2, ltl_new_2)
+                ltl_dup = re.sub(ltl_old_1, ltl_new_1, ltl)
+                lang_dup = re.sub(lang_old_1, lang_new_1, lang)
 
+                ltl_dup = re.sub(ltl_old_2, ltl_new_2, ltl_dup)
+                lang_dup = re.sub(lang_old_2, lang_new_2, lang_dup)
+
+                #print(lang); print(ltl); print(lang_dup); print(ltl_dup)
+                print()
+                if ltl_dup.count(ltl_new_1) > 1 or ltl_dup.count(ltl_new_2) > 1: continue
+                if ltl_dup.count(ltl_old_1) > 1 or ltl_dup.count(ltl_old_2) > 1: continue
+                items.append(lang_dup + '\n' + ltl_dup)
 
 
 
@@ -290,7 +335,7 @@ def duplicate_data():
 
     print(len(lang_lines))
     print(len(items))
-    return
+    #return
 
     fname_lang = 'hard_pc_src_syn2_dup.txt'
     fname_ltl = 'hard_pc_tar_syn2_dup.txt'
@@ -298,9 +343,11 @@ def duplicate_data():
     flang = open(os.getcwd() + '/' + fname_lang, 'w+')
     fltl = open(os.getcwd() + '/' + fname_ltl, 'w+')
 
-    for i in range(len(lang_dup)):
-        fname_lang.write(lang_dup[i] + '\n')
-        fname_ltl.write(ltl_dup[i] + '\n')
+    for i in range(len(items)):
+
+        lang, ltl = items[i].split('\n')[0], items[i].split('\n')[1]
+        flang.write(lang + '\n')
+        fltl.write(ltl + '\n')
 
     return None
 
@@ -312,8 +359,8 @@ def run():
 if __name__ == '__main__':
     #load_data()
     #clean_data()
-    old_duplicate_data()
-    #duplicate_data()
+    #old_duplicate_data()
+    duplicate_data()
 
     #train, test = split_train_test()
     #run()

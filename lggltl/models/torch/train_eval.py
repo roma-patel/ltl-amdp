@@ -91,6 +91,7 @@ def train(input_variable, target_variable, encoder, decoder, encoder_optimizer, 
     encoder_optimizer.step()
     decoder_optimizer.step()
 
+    return loss.item() / target_length
     return loss.data[0] / target_length
 
 
@@ -106,11 +107,14 @@ def trainIters(in_lang, out_lang, encoder, decoder, samples, n_iters, max_length
     criterion = nn.NLLLoss()
 
     i, max = -1, n_iters + 1
-    #for i in range(1, n_iters + 1):
-    for training_pair in training_pairs:
-        i += 1
-        if i == 100: break
+    for i in range(1, n_iters + 1):
+    #for training_pair in training_pairs:
+
+        #i += 1
+        #if i == 100: break
         #training_pair = training_pairs.next()
+        training_pair = next(training_pairs)
+
         input_variable = training_pair[0]
         target_variable = training_pair[1]
 
@@ -119,7 +123,8 @@ def trainIters(in_lang, out_lang, encoder, decoder, samples, n_iters, max_length
         print_loss_total += loss
         plot_loss_total += loss
 
-        print(loss)
+
+        print(i, loss)
         if i % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_loss_total = 0
@@ -160,7 +165,9 @@ def evaluate(input_lang, output_lang, encoder, decoder, sentence, max_length):
             decoder_attentions[di] = decoder_attention.data
 
         topv, topi = decoder_output.data.topk(1)
-        ni = topi[0][0].data.numpy().tolist()
+        #ni = topi[0][0].data.numpy().tolist()
+        ni = topi[0][0].cpu().data.numpy().tolist()
+
         if ni == EOS_token:
             decoded_words.append('<EOS>')
             break
