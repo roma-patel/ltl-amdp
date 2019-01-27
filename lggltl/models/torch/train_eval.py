@@ -111,7 +111,7 @@ def trainIters(in_lang, out_lang, encoder, decoder, samples, n_iters, max_length
     #for training_pair in training_pairs:
 
         #i += 1
-        #if i == 100: break
+        #if i == 10: break
         #training_pair = training_pairs.next()
         training_pair = next(training_pairs)
 
@@ -137,7 +137,15 @@ def trainIters(in_lang, out_lang, encoder, decoder, samples, n_iters, max_length
             plot_loss_total = 0
 
 
+    #encoder1, attn_decoder1, new_attn_decoder1, com_attn_decoder1, decoder1
+
+    path = '../../models/torch/checkpoint/'
+    torch.save(encoder.state_dict(), path + 'encoder')
+    torch.save(decoder.state_dict(), path + 'decoder')
+
+
 def evaluate(input_lang, output_lang, encoder, decoder, sentence, max_length):
+    #print('Sentence, ', sentence)
     input_variable = variableFromSentence(input_lang, ' '.join(list(reversed(sentence.split()))))
     input_length = input_variable.size()[0]
     encoder_hidden = encoder.initHidden()
@@ -244,6 +252,25 @@ def evaluate2(input_lang, output_lang, encoder, decoder, sentence, max_length):
 
     return decoded_words[1:], None
 
+
+def evaluateSelected(input_lang, output_lang, encoder, decoder, pairs, max_length, n=10):
+    n = 1
+    items = []
+    for i in range(n):
+        #pair = random.choice(pairs)
+        pair = pairs[i]
+        print('>', pair[0])
+        print('=', pair[1])
+
+        sentence = pair[0]
+        sentence = 'move move move '
+        output_words, attentions = evaluate(input_lang, output_lang, encoder, decoder, sentence, max_length)
+        output_sentence = ' '.join(output_words)
+        print('<', output_sentence)
+        print('')
+        items.append(output_sentence)
+
+    return items
 
 def evaluateRandomly(input_lang, output_lang, encoder, decoder, pairs, max_length, n=10):
     for i in range(n):

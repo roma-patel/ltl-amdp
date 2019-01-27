@@ -54,7 +54,10 @@ def main():
         trainIters(input_lang, output_lang, encoder1, attn_decoder1, pairs, 10000, MAX_LENGTH, print_every=500)
         encoder1.eval()
         attn_decoder1.eval()
-        evaluateRandomly(input_lang, output_lang, encoder1, attn_decoder1, pairs, MAX_LENGTH)
+        print('\n\nEvaluating!\n')
+        #evaluateRandomly(input_lang, output_lang, encoder1, attn_decoder1, pairs, MAX_LENGTH)
+        evaluateSelected(input_lang, output_lang, encoder1, attn_decoder1, pairs, MAX_LENGTH)
+
     elif MODE == 1:
         trainIters(input_lang, output_lang, encoder1, attn_decoder1, pairs, 10000, MAX_LENGTH, print_every=500)
         encoder1.eval()
