@@ -38,6 +38,7 @@ new_attn_decoder1 = NewAttnDecoderRNN(embed_size, hidden_size, output_lang.n_wor
 com_attn_decoder1 = CombinedAttnDecoderRNN(embed_size, hidden_size, output_lang.n_words, MAX_LENGTH)
 decoder1 = DecoderRNN(embed_size, hidden_size, output_lang.n_words)
 
+
 if use_cuda:
     encoder1 = encoder1.cuda()
     attn_decoder1 = attn_decoder1.cuda()
@@ -54,7 +55,7 @@ def text_to_ltl(lang, ltl):
     path = '../../models/torch/checkpoint/'
     encoder1.load_state_dict(torch.load(path + 'encoder'))
     attn_decoder1.load_state_dict(torch.load(path + 'decoder'))
-
+    print('Loaded checkpoints!')
     # set it to evaluate mode
     encoder1.eval()
     attn_decoder1.eval()
@@ -63,13 +64,17 @@ def text_to_ltl(lang, ltl):
     # e.g., pairs = [['proceed to the green room by going through the blue room .', 'F ( blue_room & F ( red_room ) )']]
 
     pairs = [[lang, ltl]]
+    print('Pairs, ', pairs)
     ltl = evaluateSelected(input_lang, output_lang, encoder1, attn_decoder1, pairs, MAX_LENGTH)
     return ltl
 
 if __name__ == '__main__':
 
     lang = 'proceed to the green room by going through the blue room .'
-    true_ltl = 'F ( blue_room & F ( red_room ) )'
+    true_ltl = 'F ( green_room & F ( blue_room ) )'
+
+    #lang = 'go to the blue room .'
+    #true_ltl = 'F ( blue_room )'
 
     ltl = text_to_ltl(lang, true_ltl)
-    print(ltl)
+    print('Model output of LTL, ', ltl)
