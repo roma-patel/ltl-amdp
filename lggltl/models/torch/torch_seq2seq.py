@@ -50,8 +50,12 @@ CLI = False
 
 
 def main():
+    #n_iters = 1000
+    #n_iters = 5000
+    n_iters = 10000
+    #n_iters = 1000000
     if MODE == 0:
-        trainIters(input_lang, output_lang, encoder1, attn_decoder1, pairs, 10000, MAX_LENGTH, print_every=500)
+        trainIters(input_lang, output_lang, encoder1, attn_decoder1, pairs, n_iters, MAX_LENGTH, print_every=500)
         encoder1.eval()
         attn_decoder1.eval()
         print('\n\nEvaluating!\n')

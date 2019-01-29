@@ -23,6 +23,9 @@ class Lang:
         else:
             self.word2count[word] += 1
 
+
+
+
 # Lowercase, trim, and remove non-letter characters
 
 

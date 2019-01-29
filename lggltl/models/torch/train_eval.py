@@ -141,7 +141,7 @@ def trainIters(in_lang, out_lang, encoder, decoder, samples, n_iters, max_length
 
     import os
     path = '../../models/torch/checkpoint/'
-    path = '../../models/torch/checkpoint-gpu/'
+    #path = '../../models/torch/checkpoint-gpu/'
 
     #path = '../../models/torch/checkpoint' + str(n_iters) + '/'
     if os.path.isdir(path) is False: os.mkdir(path)
@@ -259,7 +259,7 @@ def evaluate2(input_lang, output_lang, encoder, decoder, sentence, max_length):
 
 
 def evaluateSelected(input_lang, output_lang, encoder, decoder, pairs, max_length, n=10):
-    n = 1
+    n = 10
     items = []
     for i in range(n):
         pair = random.choice(pairs)
